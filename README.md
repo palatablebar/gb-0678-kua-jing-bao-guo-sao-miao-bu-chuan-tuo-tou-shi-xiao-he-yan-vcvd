@@ -25,6 +25,8 @@ docker compose exec -T app pytest -q
 
 以事件发生时刻重建路径，补传不改变既有妥投时间；承诺时钟按目的地节假日停表。
 
+节点代码按版本化口径裁决（见模块2/4与 `app/node_policy.py`）：本月承运商将同一代码 CN 从“清关”改义为“起运”。每条扫描以**事件发生时刻**命中生效口径，旧扫描补传仍按旧口径保留原路径；首选口径导致路径无效时自动回退备选口径并在页面与证据 CSV 中留痕，新旧口径均无效才隔离并附全部候选方案。工具条可切换 event_time/force_legacy/force_current 模式，`GET /api/node-policy` 可查注册表与指纹。
+
 ## 演示
 
 1. 打开首页，核对当次计算、差异和隔离原因。
@@ -34,7 +36,7 @@ docker compose exec -T app pytest -q
 
 ## 输入与输出
 
-输入列见 `docs/DATA-DICTIONARY.md`。项目包含dirty.csv、clean.csv、legacy.csv，统一走实际导入路径。上传限制4MB，拒绝不带时区的时间。业务键按字符串保留，Decimal参与计算，空值不会当零。
+输入列见 `docs/DATA-DICTIONARY.md`。项目包含dirty.csv、clean.csv、legacy.csv、cutover.csv，统一走实际导入路径。上传限制4MB，拒绝不带时区的时间。业务键按字符串保留，Decimal参与计算，空值不会当零。
 
 `POST /api/runs` 接收sample或csv；`GET /api/runs`返回历史批次；`POST /api/runs/<id>/review`需要version与decision；`GET /api/runs/<id>/archive`返回唯一证据导出。
 

@@ -1,7 +1,7 @@
 from flask import Flask,jsonify,request,send_from_directory
 from app.config import ROOT,DATA_DIR,MODULES
 from app.errors import DomainError
-from app import pipeline,store
+from app import pipeline,store,node_policy
 from app.web import register_pages
 import importlib
 def create_app():
@@ -17,12 +17,26 @@ def create_app():
     def too_large(error): return jsonify({"code":"TOO_LARGE","message":"文件超过4MB"}),413
     @application.get("/healthz")
     def health(): return {"status":"ok"}
+    @application.get("/api/node-policy")
+    def node_policy_registry():
+        return jsonify({"registry":node_policy.REGISTRY,
+                        "fingerprint":node_policy.registry_fingerprint(),
+                        "modes":list(node_policy.POLICY_MODES)})
+    def _normalized_params(params):
+        mode=params.get("node_policy","event_time")
+        if mode not in node_policy.POLICY_MODES:
+            raise DomainError("BAD_NODE_POLICY","节点口径模式无效，可选 event_time/force_legacy/force_current")
+        if "node_cutover" in params:
+            from app.values import instant as _instant
+            _instant(params["node_cutover"])
+        return params
     @application.post("/api/runs")
     def runs():
         payload=request.get_json(silent=True)
         if not isinstance(payload,dict): raise DomainError("BAD_BODY","请求需要对象")
         params=payload.get("parameters",{})
         if not isinstance(params,dict): raise DomainError("BAD_PARAMETERS","参数需要对象")
+        _normalized_params(params)
         raw=payload.get("csv")
         if raw is not None and not isinstance(raw,str): raise DomainError("BAD_CSV","CSV需要文本")
         return pipeline.execute(raw.encode() if raw is not None else pipeline.load_sample(payload.get("sample","dirty.csv")),params)
@@ -30,7 +44,13 @@ def create_app():
     def upload():
         file=request.files.get("file")
         if not file: raise DomainError("NO_FILE","请选择CSV文件")
-        return pipeline.execute(file.read())
+        params={}
+        if request.form.get("parameters"):
+            import json as _json
+            params=_json.loads(request.form["parameters"])
+            if not isinstance(params,dict): raise DomainError("BAD_PARAMETERS","参数需要对象")
+        _normalized_params(params)
+        return pipeline.execute(file.read(),params)
     @application.get("/api/runs")
     def history(): return {"runs":store.history()}
     @application.get("/api/runs/<run_id>")
